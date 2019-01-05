@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 
 from decimal import Decimal
-from pyvbus.vbusexception import VBUSException
+
+
+class VBUSPacketException(Exception):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
 
 
 class VBUSPacket(object):
@@ -27,8 +34,20 @@ class VBUSPacket(object):
         return self._header_source
 
     @property
+    def header_protocol(self):
+        return self._header_protocol
+
+    @property
     def header_command(self):
         return self._header_command
+
+    @property
+    def header_framecount(self):
+        return self._header_framecount
+
+    @property
+    def header_checksum(self):
+        return self._header_checksum
 
     @property
     def supported_protocols(self):
@@ -37,12 +56,13 @@ class VBUSPacket(object):
     def __init__(self, buffer):
         self._buffer = buffer
 
-        if not self._buffer[0] == 0xAA:
-            raise VBUSException('Buffer does not start with SYNC byte')
+        if not self._buffer[0] == 0xaa:
+            raise VBUSPacketException('Buffer does not start with SYNC byte')
 
         if len(self._buffer) < 6:
-            raise VBUSException(
-                'Invalid buffer length: %s' % len(self._buffer)
+            raise VBUSPacketException(
+                'Buffer length expected greater or equal to 6 (got %s)' %
+                len(self._buffer)
             )
 
         self._header_syncbyte = self._buffer[0]
@@ -51,11 +71,17 @@ class VBUSPacket(object):
         self._header_protocol = self._buffer[5]
 
         if self._header_protocol not in self.supported_protocols:
-            raise VBUSException(
+            raise VBUSPacketException(
                 'Unsupported protocol version: %s' % self._header_protocol
             )
 
         if self._header_protocol == 0x10:
+            if len(self._buffer) < 10:
+                raise VBUSPacketException(
+                    'Buffer length expected greater or equal to 10 (got %s)' %
+                    len(self._buffer)
+                )
+
             self._header_command = self._buffer[6] + self._buffer[7] * 0x100
             self._header_framecount = self._buffer[8]
             self._header_checksum = self._buffer[9]
@@ -63,21 +89,27 @@ class VBUSPacket(object):
 
             calculated_checksum = self.vbus_calccrc(1, 8)
             if self._header_checksum != calculated_checksum:
-                raise ValueError(
-                    "Invalid header checksum",
-                    self._header_checksum
+                raise VBUSPacketException(
+                    'Invalid header checksum: expected %s got %s' % (
+                        self._header_checksum,
+                        calculated_checksum
+                    )
                 )
 
             expectedlength = self._header_offset + self._header_framecount * 6
             if len(buffer) != expectedlength:
-                raise ValueError(
-                    "Invalid frame count",
-                    self._header_framecount
+                raise VBUSPacketException(
+                    "Invalid frame count: expected %s got %s" % (
+                        expectedlength,
+                        len(buffer)
+                    )
                 )
 
             self.vbus_0x10_decodeframes()
         else:
-            raise ValueError("Unknown protocol", hex(protocol))
+            raise VBUSPacketException(
+                'Unsupported protocol version: %s' % self._header_protocol
+            )
 
     def vbus_calccrc(self, offset, length):
         crc = 0x7F
@@ -106,8 +138,12 @@ class VBUSPacket(object):
     def vbus_0x10_decodeframes(self):
         for data_byte in self._buffer[1:]:
             if data_byte & 0x80 > 0x7F:
-                raise VBUSException('Byte (%s) has its MSB set: %s' % (
-                    data_byte, data_byte & 0x80 > 0x7))
+                raise VBUSPacketException(
+                    'Byte (%s) has its MSB set: %s' % (
+                        data_byte,
+                        data_byte & 0x80 > 0x7
+                    )
+                )
 
         self._allframes = ['\x00'] * 4 * self._header_framecount
 
@@ -117,7 +153,12 @@ class VBUSPacket(object):
     def vbus_0x10_decodeframe(self, source_offset, target_offset):
         frame_checksum = self.vbus_calccrc(source_offset, 5)
         if not frame_checksum == self._buffer[source_offset+5]:
-            raise VBUSException('Data frame checksum invalid')
+            raise VBUSPacketException(
+                'Data frame checksum invalid: expected %s got %s' % (
+                    self._buffer[source_offset+5],
+                    frame_checksum
+                )
+            )
 
         self.vbus_injectseptett(source_offset, 4)
 
@@ -133,26 +174,7 @@ class VBUSPacket(object):
 
         return value
 
-    def GetTimeValue(self, offset, size):
-        value = self.GetRawValue(offset, size)
-
-        hours = value//60
-        minutes = value - hours*60
-        value = "%02d:%02d" % (hours, minutes)
-
-        return value
-
-    def GetFactorValue(self, offset, size, factor):
-        value = self.GetRawValue(offset, size)
-
-        if factor < 1:
-            value = value / (1/factor)
-        elif factor > 1:
-            value = value * factor
-
-        return value
-
-    def GetTemperatureValue(self, offset, size, factor):
+    def GetTemperatureValue(self, offset, size, factor=0.1):
         value = self.GetRawValue(offset, size)
 
         bits = size * 8
@@ -163,5 +185,14 @@ class VBUSPacket(object):
             value = value / (1/factor)
         elif factor > 1:
             value = value * factor
+
+        return value
+
+    def GetTimeValue(self, offset, size):
+        value = self.GetRawValue(offset, size)
+
+        hours = value//60
+        minutes = value - hours*60
+        value = "%02d:%02d" % (hours, minutes)
 
         return value
