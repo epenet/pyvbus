@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#  pyvbus
+#  ---------------
+#  A Python library for processing RESOL VBus data.
+#
+#  Author:  epenet <erwann@zeflip.com> (c) 2019
+#  Website: https://github.com/epenet/pyvbus
+#  License: MIT (see LICENSE file)
 
 
 import unittest
