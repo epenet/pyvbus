@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-from decimal import Decimal
-
 
 class VBUSPacketException(Exception):
     def __init__(self, value):
