@@ -208,3 +208,17 @@ class VBUSPacket(object):
         value = "%02d:%02d" % (hours, minutes)
 
         return value
+
+    def GetBitValue(self, offset, position):
+        value = self.GetRawValue(offset, 1)
+
+        if not 0 <= position <= 7:
+            raise VBusPacketExeception('Invalid bit position (%s)' % (
+                position
+                )
+            )
+
+        mask = 2 ** position
+        value = (value & mask) >> position
+
+        return value
