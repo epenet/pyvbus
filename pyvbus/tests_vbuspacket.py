@@ -153,6 +153,15 @@ class Test_0x7321(unittest.TestCase):
     def test_timevalues(self):
         self.assertEqual('16:05', self.packet.GetTimeValue(66, 2))
 
+    def test_bitvalues(self):
+        self.assertEqual(1, self.packet.GetBitValue(0, 0))
+        self.assertEqual(0, self.packet.GetBitValue(0, 1))
+        self.assertEqual(1, self.packet.GetBitValue(0, 2))
+        self.assertEqual(1, self.packet.GetBitValue(0, 3))
+        self.assertEqual(1, self.packet.GetBitValue(0, 4))
+        self.assertEqual(0, self.packet.GetBitValue(0, 5))
+        self.assertEqual(1, self.packet.GetBitValue(0, 6))
+        self.assertEqual(0, self.packet.GetBitValue(0, 7))
 
 if __name__ == '__main__':
     unittest.main()

@@ -161,8 +161,8 @@ class VBUSPacket(object):
                 'Data frame checksum invalid: expected %s got %s' % (
                     self._buffer[source_offset+5],
                     frame_checksum
+                    )
                 )
-            )
 
         self.vbus_injectseptett(source_offset, 4)
 
@@ -172,6 +172,14 @@ class VBUSPacket(object):
     def GetRawValue(self, offset, size):
         bit_size = size * 8
         value = 0
+
+        if len(self._allframes) < (offset + size):
+            raise VBUSPacketException(
+                'Invalid offset (%s) and size (%s)' % (
+                    offset,
+                    size
+                    )
+                )
 
         for i in range(size):
             value += self._allframes[(offset+i)] << (8*i)
@@ -198,5 +206,19 @@ class VBUSPacket(object):
         hours = value//60
         minutes = value - hours*60
         value = "%02d:%02d" % (hours, minutes)
+
+        return value
+
+    def GetBitValue(self, offset, position):
+        value = self.GetRawValue(offset, 1)
+
+        if not 0 <= position <= 7:
+            raise VBusPacketExeception('Invalid bit position (%s)' % (
+                position
+                )
+            )
+
+        mask = 2 ** position
+        value = (value & mask) >> position
 
         return value
